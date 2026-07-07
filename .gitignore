@@ -13,3 +13,4 @@ checkpoints
 !run_experiments.sh
 !setup_planning.sh
 !evaluate.sh
+!all_results.sh
