@@ -48,6 +48,11 @@ training:
   vcreg_std_coeff: 0
   vcreg_cov_coeff: 0
   mixed_precision: bf16
+  # Resume from a specific checkpoint (absolute path to a model_<epoch>.pth).
+  # Leave null to auto-resume from model_latest.pth in this run's checkpoints/ folder.
+  # Resuming is fully offline: the encoder (incl. DINOv2 weights) is stored in the ckpt.
+  # Example: training.resume_from=/workspace/arun/.../checkpoints/model_10.pth
+  resume_from: null
 
 img_size: 224 # should be a multiple of 224
 frameskip: 5

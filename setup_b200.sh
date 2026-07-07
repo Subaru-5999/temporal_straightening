@@ -20,7 +20,7 @@ set -euo pipefail
 
 DATASET_ROOT="${DATASET_ROOT:-/workspace/arun/data}"
 
-echo "==> [1/4] Removing CUDA 12.1 wheels that are incompatible with Blackwell..."
+echo "==> [1/5] Removing CUDA 12.1 wheels that are incompatible with Blackwell..."
 # Pinned for CUDA 12.1 / cuDNN 8.9 -> no sm_100 kernels. The correct CUDA 12.8 /
 # cuDNN 9.x libraries are pulled in as dependencies of the torch install below.
 pip uninstall -y \
@@ -30,12 +30,12 @@ pip uninstall -y \
   nvidia-curand-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 \
   nvidia-nccl-cu12 nvidia-nvjitlink-cu12 nvidia-nvtx-cu12 || true
 
-echo "==> [2/4] Installing Blackwell-capable PyTorch (CUDA 12.8 build)..."
+echo "==> [2/5] Installing Blackwell-capable PyTorch (CUDA 12.8 build)..."
 # torch 2.7.x is the first release with official Blackwell (sm_100) support.
 pip install --index-url https://download.pytorch.org/whl/cu128 \
   torch==2.7.0 torchvision==0.22.0
 
-echo "==> [3/4] Configuring DATASET_DIR=${DATASET_ROOT} ..."
+echo "==> [3/5] Configuring DATASET_DIR=${DATASET_ROOT} ..."
 export DATASET_DIR="${DATASET_ROOT}"
 if ! grep -qs "export DATASET_DIR=${DATASET_ROOT}" "${HOME}/.bashrc" 2>/dev/null; then
   echo "export DATASET_DIR=${DATASET_ROOT}" >> "${HOME}/.bashrc"
@@ -50,7 +50,17 @@ if [ ! -d "${DATASET_ROOT}/point_maze" ]; then
   echo "    WARNING: ${DATASET_ROOT}/point_maze not found -- check the dataset path before training."
 fi
 
-echo "==> [4/4] Verifying the GPU is visible to PyTorch..."
+echo "==> [4/5] Pre-caching the DINOv2 backbone (so fresh runs work if internet later drops)..."
+# All dino* encoder configs use dinov2_vits14. Downloading it now (internet available
+# during setup) caches it under ~/.cache/torch/hub so training won't need to fetch it.
+python - <<'PY' || echo "    WARNING: DINOv2 pre-cache failed (offline?). First training run will need internet once."
+import torch
+torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
+m = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14")
+print("    cached dinov2_vits14 (num_features =", m.num_features, ")")
+PY
+
+echo "==> [5/5] Verifying the GPU is visible to PyTorch..."
 python - <<'PY'
 import torch
 print("torch:", torch.__version__, "| cuda:", torch.version.cuda)
@@ -73,4 +83,17 @@ Next steps:
 
   # full paper run:
   python train.py --config-name train.yaml env=point_maze
+
+  # ---- Offline / interrupted-run resume ----
+  # The FIRST run downloads the DINOv2 backbone (needs internet, once). After a
+  # checkpoint exists, training resumes with NO internet: the encoder + DINOv2
+  # weights are stored inside the checkpoint.
+  #
+  # If internet is unreliable, run wandb offline so logging never blocks training:
+  #   export WANDB_MODE=offline
+  #
+  # Auto-resume: just rerun the SAME command -- it picks up model_latest.pth.
+  # Resume from a SPECIFIC checkpoint you choose:
+  #   python train.py --config-name train.yaml env=point_maze \
+  #       training.resume_from=/workspace/arun/temporal-straightening/checkpoints/test/<run>/checkpoints/model_10.pth
 EOF

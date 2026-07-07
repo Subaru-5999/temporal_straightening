@@ -261,10 +261,28 @@ class Trainer:
             log.warning("Keys not found in ckpt: %s", not_in_ckpt)
 
     def init_models(self):
-        model_ckpt = Path(self.cfg.saved_folder) / "checkpoints" / "model_latest.pth"
+        # Resume priority:
+        #   1. An explicit checkpoint via training.resume_from=/abs/path/model_X.pth
+        #      (useful to continue offline from a specific saved epoch).
+        #   2. Otherwise auto-resume from model_latest.pth in this run's folder.
+        # Because the encoder (incl. the DINOv2 backbone weights) is stored in the
+        # checkpoint, resuming does NOT re-download anything and works with no internet.
+        resume_from = self.cfg.training.get("resume_from", None)
+        if resume_from:
+            model_ckpt = Path(resume_from).expanduser()
+            if not model_ckpt.exists():
+                raise FileNotFoundError(
+                    f"training.resume_from='{model_ckpt}' does not exist. "
+                    "Point it at a valid model_<epoch>.pth checkpoint."
+                )
+        else:
+            model_ckpt = Path(self.cfg.saved_folder) / "checkpoints" / "model_latest.pth"
+
         if model_ckpt.exists():
             self.load_ckpt(model_ckpt)
             log.info(f"Resuming from epoch {self.epoch}: {model_ckpt}")
+        else:
+            log.info("No checkpoint found; starting training from scratch.")
 
         # initialize encoder
         if self.encoder is None:
