@@ -10,3 +10,6 @@ checkpoints
 # keep the B200 helper scripts despite the *.sh ignore above
 !setup_b200.sh
 !run_train.sh
+!run_experiments.sh
+!setup_planning.sh
+!evaluate.sh
