@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+figures
+*outputs*
+data
+wandb
+checkpoints
+*.slurm
+*.sh
+# keep the B200 bootstrap script despite the *.sh ignore above
+!setup_b200.sh
