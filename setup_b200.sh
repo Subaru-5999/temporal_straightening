@@ -6,16 +6,19 @@
 #   GPU     : NVIDIA B200 (Blackwell, sm_100), MIG ~45 GB
 #   Driver  : 570.124.06  /  CUDA driver 12.8
 #   Python  : 3.10  (conda env `ts`)
-#   Project : /arun/temporal-straightening
-#   Data    : /arun/data   (point_maze at /arun/data/point_maze)
+#   Project : /workspace/arun/temporal-straightening
+#   Data    : /workspace/arun/data   (point_maze at /workspace/arun/data/point_maze)
 #
 # Usage (inside the activated conda env, from the project root):
 #     conda activate ts          # or a clone: conda create --name ts_b200 --clone ts
 #     bash setup_b200.sh
+#
+# Override the data root if yours differs:
+#     DATASET_ROOT=/some/other/data bash setup_b200.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-DATASET_ROOT="${DATASET_ROOT:-/arun/data}"
+DATASET_ROOT="${DATASET_ROOT:-/workspace/arun/data}"
 
 echo "==> [1/4] Removing CUDA 12.1 wheels that are incompatible with Blackwell..."
 # Pinned for CUDA 12.1 / cuDNN 8.9 -> no sm_100 kernels. The correct CUDA 12.8 /
@@ -38,8 +41,13 @@ if ! grep -qs "export DATASET_DIR=${DATASET_ROOT}" "${HOME}/.bashrc" 2>/dev/null
   echo "export DATASET_DIR=${DATASET_ROOT}" >> "${HOME}/.bashrc"
   echo "    added DATASET_DIR to ~/.bashrc (persists across sessions)"
 fi
+if [ ! -d "${DATASET_ROOT}" ]; then
+  echo "    ERROR: DATASET_ROOT '${DATASET_ROOT}' does not exist."
+  echo "    Set the correct path, e.g.: DATASET_ROOT=/workspace/arun/data bash setup_b200.sh"
+  exit 1
+fi
 if [ ! -d "${DATASET_ROOT}/point_maze" ]; then
-  echo "    WARNING: ${DATASET_ROOT}/point_maze not found -- check the dataset path."
+  echo "    WARNING: ${DATASET_ROOT}/point_maze not found -- check the dataset path before training."
 fi
 
 echo "==> [4/4] Verifying the GPU is visible to PyTorch..."
@@ -57,7 +65,7 @@ cat <<'EOF'
 ==> Setup complete. If capability printed (10, 0) with a B200 device name, you're good.
 
 Next steps:
-  export DATASET_DIR=/arun/data        # already added to ~/.bashrc
+  export DATASET_DIR=/workspace/arun/data   # already added to ~/.bashrc
 
   # quick smoke test (short run) to confirm data loads and the 45 GB slice holds:
   python train.py --config-name train.yaml env=point_maze \
