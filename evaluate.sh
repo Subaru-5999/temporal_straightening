@@ -25,6 +25,12 @@ EXTRA="${EXTRA:-}"
 
 export WANDB_MODE="${WANDB_MODE:-offline}"
 export D4RL_SUPPRESS_IMPORT_ERROR="${D4RL_SUPPRESS_IMPORT_ERROR:-1}"
+# Headless GL for the sim's offscreen rendering.
+export MUJOCO_GL="${MUJOCO_GL:-egl}"
+export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"
+# MIG fix: torch 2.7's expandable_segments allocator uses NVML/VMM APIs that fail
+# on MIG instances (NVML_SUCCESS assert). Disable it to use the classic allocator.
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:False}"
 
 if [ ! -f "${RUN_DIR}/hydra.yaml" ]; then
   echo "ERROR: ${RUN_DIR}/hydra.yaml not found. Pass the run dir that contains hydra.yaml + checkpoints/."
