@@ -249,7 +249,9 @@ class Trainer:
         return ckpt_path, model_name, model_epoch
 
     def load_ckpt(self, filename="model_latest.pth"):
-        ckpt = torch.load(filename)
+        # weights_only=False: checkpoints store full nn.Module objects, not just
+        # state-dicts. Required on torch>=2.6 (where weights_only defaults to True).
+        ckpt = torch.load(filename, weights_only=False)
         self._loaded_optim_state = {}
         for k, v in ckpt.items():
             if k.endswith("_optimizer") and isinstance(v, dict):
@@ -358,11 +360,11 @@ class Trainer:
                     decoder_path = os.path.join(
                         self.base_path, self.cfg.env.decoder_path
                     )
-                    ckpt = torch.load(decoder_path)
+                    ckpt = torch.load(decoder_path, weights_only=False)
                     if isinstance(ckpt, dict):
                         self.decoder = ckpt["decoder"]
                     else:
-                        self.decoder = torch.load(decoder_path)
+                        self.decoder = torch.load(decoder_path, weights_only=False)
                     log.info(f"Loaded decoder from {decoder_path}")
                 else:
                     decoder_kwargs = {
