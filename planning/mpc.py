@@ -131,6 +131,11 @@ class MPCPlanner(BasePlanner):
             )
             self.iter += 1
             self.sub_planner.logging_prefix = f"plan_{self.iter}"
+            # Free cached GPU memory between iterations. The executed horizon grows
+            # each iter, so memory climbs; on a MIG slice, memory pressure triggers
+            # torch's NVML free-memory query which asserts. Clearing avoids that.
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         planned_actions = torch.cat(self.planned_actions, dim=1)
         self.evaluator.assign_init_cond(

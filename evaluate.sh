@@ -42,8 +42,12 @@ fi
 
 for cfg in plan_gd plan_gd_mpc; do
   echo "=== ${cfg} ==="
+  # decode_for_viz=false: skips decoding the full (growing) rollout into images +
+  # video each MPC iter. This does NOT change success_rate (computed from env state),
+  # but massively cuts GPU memory growth -> avoids the MIG NVML-under-pressure assert.
   python plan.py --config-name "${cfg}.yaml" \
-    ckpt_base_path="${RUN_DIR}" model_name="${MODEL_NAME}" model_epoch="${MODEL_EPOCH}" ${EXTRA} \
+    ckpt_base_path="${RUN_DIR}" model_name="${MODEL_NAME}" model_epoch="${MODEL_EPOCH}" \
+    decode_for_viz=false ${EXTRA} \
     || echo "!!! ${cfg} failed for ${MODEL_NAME}"
 done
 
