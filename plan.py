@@ -482,8 +482,12 @@ def planning_main(cfg_dict):
     t_after_model = time.perf_counter()
     print(f"[timing] setup_model_s={t_after_model - t_start:.3f}", flush=True)
 
-    # use dummy vector env for wall and deformable envs
-    if model_cfg.env.name == "wall" or model_cfg.env.name == "deformable_env":
+    # Use a serial (non-forking) vector env for wall/deformable, or whenever
+    # PLAN_SERIAL_ENV=1. On MIG slices, SubprocVectorEnv forks worker processes
+    # AFTER CUDA/NVML init, which is not fork-safe and intermittently trips the
+    # allocator's NVML assert (NVML_SUCCESS == r) during backward. Serial avoids it.
+    force_serial = os.environ.get("PLAN_SERIAL_ENV", "0") == "1"
+    if force_serial or model_cfg.env.name == "wall" or model_cfg.env.name == "deformable_env":
         from env.serial_vector_env import SerialVectorEnv
         env = SerialVectorEnv(
             [
