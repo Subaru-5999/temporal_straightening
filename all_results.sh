@@ -31,14 +31,14 @@ echo "Found ${#runs[@]} run(s) to evaluate:"
 printf '  %s\n' "${runs[@]}"
 
 for run in "${runs[@]}"; do
-  ckpt_base="$(readlink -f "$(dirname "$run")")"   # .../test
+  run_dir="$(readlink -f "$run")"                  # the run folder itself
   model_name="$(basename "$run")"
   extra=""
   case "$model_name" in *pusht*|*PushT*) extra="objective.alpha=1";; esac
   echo "==================================================================="
   echo "### Evaluating ${model_name}"
   echo "==================================================================="
-  EXTRA="$extra" bash evaluate.sh "$ckpt_base" "$model_name" "$EPOCH" \
+  EXTRA="$extra" bash evaluate.sh "$run_dir" "$EPOCH" \
     || echo "!!! evaluation failed for ${model_name} (continuing)"
 done
 

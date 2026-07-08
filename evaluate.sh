@@ -1,36 +1,45 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# evaluate.sh  <ckpt_base_path>  <model_name>  [model_epoch]
-# Runs both planners (open-loop GD + MPC) on a trained checkpoint and prints
-# the two success rates that fill a Table-1 row.
+# evaluate.sh  <run_dir>  [model_epoch]
+# Runs both planners (open-loop GD + MPC) on ONE trained run and prints the two
+# success rates that fill a Table-1 row.
+#
+# <run_dir> = the folder that directly contains hydra.yaml and checkpoints/
+#   e.g. /workspace/arun/temporal-straightening/checkpoints/test/umaze_False_agg32_projnone_dim384_hw14_sgTrue_lr1e-05
+#
+# plan.py treats an ABSOLUTE ckpt_base_path as the model folder directly
+# (model_name is only used for output naming), so we pass the run dir as-is.
 #
 # Example:
-#   bash evaluate.sh \
-#     /workspace/arun/temporal-straightening/checkpoints/test \
-#     umaze_False_agg32_projnone_dim384_hw14_sgTrue_lr1e-05 \
-#     latest
+#   bash evaluate.sh /workspace/arun/temporal-straightening/checkpoints/test/umaze_False_agg32_projnone_dim384_hw14_sgTrue_lr1e-05
 #
-# For PushT add: EXTRA="objective.alpha=1"  (and for MPC also objective.mode=staged)
+# For PushT add: EXTRA="objective.alpha=1"  (MPC also wants objective.mode=staged)
 # ---------------------------------------------------------------------------
-set -euo pipefail
+set -uo pipefail
 
-CKPT_BASE="${1:?usage: evaluate.sh <ckpt_base_path> <model_name> [model_epoch]}"
-MODEL_NAME="${2:?usage: evaluate.sh <ckpt_base_path> <model_name> [model_epoch]}"
-MODEL_EPOCH="${3:-latest}"
+RUN_DIR="${1:?usage: evaluate.sh <run_dir> [model_epoch]}"
+RUN_DIR="$(readlink -f "$RUN_DIR")"
+MODEL_EPOCH="${2:-latest}"
+MODEL_NAME="$(basename "$RUN_DIR")"
 EXTRA="${EXTRA:-}"
 
 export WANDB_MODE="${WANDB_MODE:-offline}"
+export D4RL_SUPPRESS_IMPORT_ERROR="${D4RL_SUPPRESS_IMPORT_ERROR:-1}"
 
-echo "=== Open-loop (plan_gd) ==="
-python plan.py --config-name plan_gd.yaml \
-  ckpt_base_path="${CKPT_BASE}" model_name="${MODEL_NAME}" model_epoch="${MODEL_EPOCH}" ${EXTRA}
+if [ ! -f "${RUN_DIR}/hydra.yaml" ]; then
+  echo "ERROR: ${RUN_DIR}/hydra.yaml not found. Pass the run dir that contains hydra.yaml + checkpoints/."
+  exit 1
+fi
 
-echo "=== MPC (plan_gd_mpc) ==="
-python plan.py --config-name plan_gd_mpc.yaml \
-  ckpt_base_path="${CKPT_BASE}" model_name="${MODEL_NAME}" model_epoch="${MODEL_EPOCH}" ${EXTRA}
+for cfg in plan_gd plan_gd_mpc; do
+  echo "=== ${cfg} ==="
+  python plan.py --config-name "${cfg}.yaml" \
+    ckpt_base_path="${RUN_DIR}" model_name="${MODEL_NAME}" model_epoch="${MODEL_EPOCH}" ${EXTRA} \
+    || echo "!!! ${cfg} failed for ${MODEL_NAME}"
+done
 
 echo ""
-echo "=== success_rate values found (multiply by 100 for %) ==="
+echo "=== success_rate values (x100 = %) ==="
 grep -rh "success_rate" plan_outputs_gd/ 2>/dev/null | tail -n 1 || echo "  (open-loop logs.json not found)"
 grep -rh "success_rate" plan_outputs_gd_mpc/ 2>/dev/null | tail -n 1 || echo "  (mpc logs.json not found)"
-echo "Tip: run 'python collect_results.py' to aggregate everything into a table."
+echo "Tip: 'python collect_results.py' aggregates everything into a table."
