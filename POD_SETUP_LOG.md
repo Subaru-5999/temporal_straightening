@@ -167,3 +167,44 @@ After the baseline is fully evaluated, launch the straightening comparison:
 ```bash
 bash run_experiments.sh      # dino_channel  straighten=False  vs  aggcos1e-1  (UMaze)
 ```
+
+
+---
+
+## CORRECTION (from paper 2603.12231v2, Table 3 footnote)
+
+**Mistake found:** the ✗ (no-straightening) `dino_channel` run was trained with
+`encoder_lr=1e-5`. The paper's Table 3 footnote says trainable projectors/ResNets
+**"use lr = 1e-6 for no straightening"** (higher lr severely degrades ✗ models).
+
+**Symptom:** ✗ open-loop reproduced at only ~20% (3 planning seeds: 0.14/0.30/0.16)
+vs paper's 44.00 ± 7.12. MPC still matched (80% vs 81.33) because MPC feedback masks
+the degraded representation; open-loop is sensitive and exposed it. The plain
+`encoder=dino` baseline was unaffected (no trainable projector -> encoder_lr irrelevant),
+which is why it reproduced fine (40% vs 35.33).
+
+**Correct learning rates (trainable-projector configs: dino_channel, scratch_resnet*):**
+| straighten | encoder_lr |
+|---|---|
+| False (✗) | **1e-6** |
+| cos1e-1 / aggcos1e-1 (✓) | 1e-5 |
+
+**Fix — retrain the ✗ row at 1e-6 (new folder, no clash with the wrong lr1e-05 run):**
+```bash
+export DATASET_DIR=/workspace/arun/data WANDB_MODE=offline
+nohup python train.py --config-name train.yaml env=point_maze \
+  encoder=dino_channel training.straighten=False training.encoder_lr=1e-6 \
+  ckpt_base_path=/workspace/arun/temporal-straightening/checkpoints/repro \
+  > train_dino_channel_off_lr1e6.log 2>&1 &
+```
+**✓ counterpart (keeps 1e-5):**
+```bash
+python train.py --config-name train.yaml env=point_maze \
+  encoder=dino_channel training.straighten=aggcos1e-1 training.encoder_lr=1e-5 \
+  ckpt_base_path=/workspace/arun/temporal-straightening/checkpoints/repro
+```
+
+**Verified matches the paper (no change needed):** planning hyperparams (Table 4:
+horizon 25, zero init, lr 0.1, 100 opt steps), open-loop = terminal MSE, batch 32,
+history 3, frameskip 5, 20 epochs, predictor/action lr 5e-4, UMaze = 2000-traj
+`point_maze` dataset, H = 5 model steps.
