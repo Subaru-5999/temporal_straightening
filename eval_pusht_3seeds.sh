@@ -5,12 +5,16 @@
 # THREE data-sampling seeds (100/200/300). The `seed` arg controls which 50 test
 # start/goal pairs are drawn (plan.py line 134: eval_seed = seed*n + 1).
 #
+# RUN-SPECIFIC: only removes/aggregates the plan outputs for THIS run's basename,
+# so evaluating the straightened (✓) run does NOT touch the ✗ run's results and
+# the two never get mixed in the aggregation.
+#
 # Open-loop uses objective.mode=last (terminal MSE within H).
 # MPC uses objective.mode=staged (terminal within H, weighted beyond H).
 # Both use objective.alpha=1 (PushT plans on target images AND proprio).
 #
-# Usage:
-#   bash eval_pusht_3seeds.sh /workspace/arun/temporal-straightening/checkpoints/repro/test/pusht_False_agg32_projchannel_dim8_hw14_sgTrue_lr1e-06
+# Usage (✗): bash eval_pusht_3seeds.sh .../pusht_False_agg32_projchannel_dim8_hw14_sgTrue_lr1e-06
+# Usage (✓): bash eval_pusht_3seeds.sh .../pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -27,9 +31,10 @@ export D4RL_SUPPRESS_IMPORT_ERROR="${D4RL_SUPPRESS_IMPORT_ERROR:-1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:False}"
 export PLAN_SERIAL_ENV="${PLAN_SERIAL_ENV:-1}"
 
-# Start clean so each logs.json holds exactly one entry per seed (no stale dupes).
-echo ">>> Removing any previous PushT plan outputs for a clean 3-seed collection..."
-rm -rf plan_outputs_gd/*pusht*/ plan_outputs_gd_mpc/*pusht*/ 2>/dev/null
+# Start clean for THIS run only (basename-scoped) so each logs.json holds exactly
+# one entry per seed. Other runs' outputs (e.g. the ✗ run, UMaze) are untouched.
+echo ">>> Removing previous plan outputs for run '${NAME}' only..."
+rm -rf plan_outputs_gd/${NAME}_*/ plan_outputs_gd_mpc/${NAME}_*/ 2>/dev/null
 
 for s in "${SEEDS[@]}"; do
   echo ""
@@ -50,26 +55,24 @@ for s in "${SEEDS[@]}"; do
 done
 
 echo ""
-echo "############### RESULTS (mean +/- std over 3 seeds) ###############"
-python - <<'PY'
-import glob, json, statistics as st
-def collect(pattern):
+echo "############### RESULTS for ${NAME} (mean +/- std over 3 seeds) ###############"
+NAME="$NAME" python - <<'PY'
+import glob, json, os, statistics as st
+name=os.environ["NAME"]
+def collect(root):
     vals=[]
-    for f in glob.glob(pattern, recursive=True):
+    for f in glob.glob(f"{root}/{name}_*/**/logs.json", recursive=True):
         for line in open(f):
             line=line.strip()
             if not line: continue
             try: vals.append(json.loads(line)["final_eval/success_rate"])
             except Exception: pass
     return vals
-for label, pat in [("OPEN-LOOP","plan_outputs_gd/*pusht*/**/logs.json"),
-                   ("MPC","plan_outputs_gd_mpc/*pusht*/**/logs.json")]:
-    v=collect(pat)
-    v=[x for x in v]  # keep all entries (one per seed)
+for label, root in [("OPEN-LOOP","plan_outputs_gd"),("MPC","plan_outputs_gd_mpc")]:
+    v=collect(root)
     if v:
-        m=st.mean(v)
-        s=st.pstdev(v) if len(v)>1 else 0.0
-        print(f"{label:10s} seeds={ [round(x,4) for x in v] }  ->  mean {m*100:.2f} +/- {s*100:.2f} %")
+        m=st.mean(v); s=st.pstdev(v) if len(v)>1 else 0.0
+        print(f"{label:10s} seeds={[round(x,4) for x in v]}  ->  mean {m*100:.2f} +/- {s*100:.2f} %")
     else:
         print(f"{label:10s} no results found")
 PY
