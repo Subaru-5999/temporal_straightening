@@ -62,8 +62,8 @@ def collect(pattern):
             try: vals.append(json.loads(line)["final_eval/success_rate"])
             except Exception: pass
     return vals
-for label, pat in [("OPEN-LOOP","plan_outputs_gd/**/logs.json"),
-                   ("MPC","plan_outputs_gd_mpc/**/logs.json")]:
+for label, pat in [("OPEN-LOOP","plan_outputs_gd/*pusht*/**/logs.json"),
+                   ("MPC","plan_outputs_gd_mpc/*pusht*/**/logs.json")]:
     v=collect(pat)
     v=[x for x in v]  # keep all entries (one per seed)
     if v:
