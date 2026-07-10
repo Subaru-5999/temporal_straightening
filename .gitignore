@@ -14,6 +14,7 @@ checkpoints
 !setup_planning.sh
 !evaluate.sh
 !all_results.sh
+!eval_pusht_3seeds.sh
 # local-only memory/context file (do not commit)
 AGENT_MEMORY.md
 _paper.txt
