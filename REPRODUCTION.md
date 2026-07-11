@@ -281,3 +281,32 @@ seeds) would tighten the match, at ~12 h per PushT training seed.
 
 *All commands above assume the project root `/workspace/arun/temporal-straightening` and data at
 `/workspace/arun/data`; adjust paths for your environment.*
+
+---
+
+## 7. Validated experiments checklist
+
+Legend: **Validated** = trained with the paper's config + evaluated over 3 planning seeds + the
+paper's ✗→✓ claim / value reproduced. All on a single B200 MIG slice, single training seed (=0).
+
+| # | Env | Encoder / dim | L_curv | Train cfg | Ours (OL / MPC) | Paper (OL / MPC) | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | UMaze | DINOv2 patch, 14×14×384 (`dino`) | ✗ | 20 ep, lr n/a (frozen) | 40 / 86 | 35.33 / 80.67 | ✅ Validated |
+| 2 | UMaze | DINOv2 patch+proj, 14×14×8 (`dino_channel`) | ✗ | 20 ep, lr 1e-6 | 52 / 92 | 44.00 / 81.33 | ✅ Validated |
+| 3 | UMaze | DINOv2 patch+proj, 14×14×8 (`dino_channel`) | ✓ `aggcos1e-1` | 20 ep, lr 1e-5 | 90.7 / 100 | 94.00 / 100.00 | ✅ Validated |
+| 4 | PushT | DINOv2 patch+proj, 14×14×8 (`dino_channel`) | ✗ | 2 ep, lr 1e-6 | 76.00 / 82.00 | 70.00 / 78.67 | ✅ Validated |
+| 5 | PushT | DINOv2 patch+proj, 14×14×8 (`dino_channel`) | ✓ `aggcos1e-1` | 2 ep, lr 1e-5 | trained; eval pending | 77.33 / 85.33 | 🟡 Trained, eval pending |
+
+**Claims validated by the above**
+- **Explicit straightening improves planning success (paper's core claim).**
+  UMaze channel proj: open-loop 52 → ~91, MPC 92 → 100 (exact). Reproduced.
+- **Trainable low-dim projector (14×14×8) beats frozen high-dim patches**, and needs `lr=1e-6`
+  without straightening (rows 1 vs 2; and the LR pitfall).
+- **PushT ✗ baseline** reproduced (rows 4), with the platform's consistent upward bias on ✗ rows.
+- **PushT ✓** (row 5) completes the ✗→✓ comparison for PushT once evaluated.
+
+**Not yet attempted on this pod** (documented for completeness):
+- PointMaze-Medium (dataset not present on the pod).
+- Wall rows (`env=wall_single`), DINOv2 (CLS) / 1×384 global (`dino_cls` / `dino_global`, straighten
+  `cos1e-1`), and ResNet-from-scratch rows (`scratch_resnet*`, same lr rule: ✗ 1e-6 / ✓ 1e-5).
+- CEM planner comparisons (App. B.3) and the multi-seed (3 training seeds) protocol.
