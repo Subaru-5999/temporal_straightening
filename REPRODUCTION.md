@@ -310,3 +310,69 @@ paper's ✗→✓ claim / value reproduced. All on a single B200 MIG slice, sing
 - Wall rows (`env=wall_single`), DINOv2 (CLS) / 1×384 global (`dino_cls` / `dino_global`, straighten
   `cos1e-1`), and ResNet-from-scratch rows (`scratch_resnet*`, same lr rule: ✗ 1e-6 / ✓ 1e-5).
 - CEM planner comparisons (App. B.3) and the multi-seed (3 training seeds) protocol.
+
+---
+
+## 8. From-scratch quickstart: PushT ✓ (straightening) after a fresh/rebuilt pod
+
+Use this if the pod was re-provisioned or `/workspace` was wiped (e.g., a power-failure crash
+corrupted the overlay). Goal: rebuild the environment and produce the PushT ✓ row only.
+Install into a **venv on `/workspace`** so it survives a container-layer reset (a pod restart
+wipes `/usr/local`, which is what silently reverted torch 2.7 → 2.3 last time).
+
+### Phase 0 — clean slate + confirm data survived
+```bash
+# If the old folder is corrupted (EIO), removing it may itself error — if so, the pod
+# needs a stop/start / re-provision to get a clean filesystem before continuing.
+rm -rf /workspace/arun/temporal-straightening 2>/dev/null
+ls /workspace/arun/data/pusht_noise/train                    # expect states.pth, obses/, ...
+dd if=/workspace/arun/data/pusht_noise/train/states.pth of=/dev/null bs=1M 2>&1 | tail -2
+```
+If the dataset reads cleanly, continue. If it EIOs, the data must be re-obtained first.
+
+### Phase 1 — code + training environment (venv on /workspace)
+```bash
+cd /workspace/arun
+git clone https://github.com/Subaru-5999/temporal_straightening temporal-straightening
+python3 -m venv --system-site-packages /workspace/arun/envs/ts_b200
+source /workspace/arun/envs/ts_b200/bin/activate
+cd /workspace/arun/temporal-straightening
+bash setup_b200.sh          # installs torch 2.7 cu128 + training deps, pre-caches DINOv2, verifies B200
+# expect the final check to print: 2.7.0+cu128 12.8 (10, 0)  and "kernel launch ok"
+```
+
+### Phase 2 — train PushT ✓ (detached, ~12 h) and BACK UP the checkpoint
+Training needs only the training-tier deps (no simulator), so it can start right after Phase 1.
+```bash
+export DATASET_DIR=/workspace/arun/data WANDB_MODE=offline PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
+setsid nohup python train.py --config-name train.yaml env=pusht encoder=dino_channel \
+  training.straighten=aggcos1e-1 training.encoder_lr=1e-5 training.epochs=2 env.num_workers=4 \
+  ckpt_base_path=/workspace/arun/temporal-straightening/checkpoints/repro \
+  > train_pusht_channel_on.log 2>&1 < /dev/null &
+tail -f train_pusht_channel_on.log     # confirm "Straightening enabled: mode=aggcos, scale=0.1"
+```
+Run folder: `checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05`.
+**As soon as it finishes (Epoch 2 saved), back the model up off the ephemeral overlay** so a crash
+can't cost 12 h again:
+```bash
+cp -a checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05 \
+      /workspace/arun/backup_pusht_on_ckpt   # and/or download model_latest.pth locally
+```
+
+### Phase 3 — planning deps (after training finishes)
+```bash
+bash setup_planning.sh
+# PushT needs the sim extras (pygame/pymunk/shapely/opencv/scikit-image) + gym 0.23.1 + imageio-ffmpeg.
+# The d4rl git install can stall on this pod (GnuTLS); it's only needed for PointMaze, not PushT.
+# If it stalls: Ctrl-C, and rely on D4RL_SUPPRESS_IMPORT_ERROR=1 (already set by the eval script)
+# so `import env` still registers the PushT env without d4rl.
+```
+
+### Phase 4 — evaluate PushT ✓ (3 data-sampling seeds) and record
+```bash
+bash eval_pusht_3seeds.sh \
+  /workspace/arun/temporal-straightening/checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05
+```
+Reads open-loop (`mode=last`, `alpha=1`) and MPC (`mode=staged`, `alpha=1`) over seeds 100/200/300 and
+prints `mean ± std`. Paper target: open-loop 77.33 ± 6.18, MPC 85.33 ± 4.99. Sanity: ✓ should sit at or
+above the recorded ✗ (open-loop 76.0, MPC 82.0).
