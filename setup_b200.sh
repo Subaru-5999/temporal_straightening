@@ -28,13 +28,19 @@ DATASET_ROOT="${DATASET_ROOT:-/workspace/arun/data}"
 # Safety: make sure we're inside a venv so installs don't touch the container's
 # system packages (keeps this fully deletable via `rm -rf` of the venv folder).
 if [ -z "${VIRTUAL_ENV:-}" ]; then
-  echo "WARNING: no active venv detected (\$VIRTUAL_ENV empty)."
-  echo "Recommended: python3 -m venv --system-site-packages /workspace/arun/envs/ts_b200 && source .../bin/activate"
-  echo "Continuing in 5s (Ctrl-C to abort)..."; sleep 5
+  echo "NOTE: installing into the SYSTEM Python (no venv). This is the supported path on this pod."
+  echo "  A container restart wipes it, but that is OK: trained checkpoints are backed up off-pod to the"
+  echo "  Hugging Face Hub (hf_backup.py), and this script rebuilds the whole env in ~15 min."
+  echo "  Avoid 'venv --system-site-packages' here: the container's transformer-engine stays visible and"
+  echo "  re-triggers the accelerate import crash (see step [1/6])."
 fi
 
-echo "==> [1/6] Clearing any torch already in the venv (clean slate)..."
+echo "==> [1/6] Clean slate: remove conflicting torch AND the container's transformer-engine..."
 pip uninstall -y torch torchvision triton || true
+# CRITICAL: NGC ships transformer-engine compiled against the container's torch 2.3. Under torch 2.7
+# it crashes `import accelerate` (undefined symbol / ABI mismatch) and kills training at startup.
+# We do not use TE anywhere -> remove it so training imports cleanly. (Pitfall we hit last time.)
+pip uninstall -y transformer-engine transformer_engine || true
 
 echo "==> [2/6] Installing Blackwell-capable PyTorch (CUDA 12.8 build)..."
 # torch 2.7.x is the first release with official Blackwell (sm_100) support.

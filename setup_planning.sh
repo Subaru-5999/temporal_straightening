@@ -38,11 +38,21 @@ done
 echo "==> [3/5] Installing planning Python deps..."
 pip install -r requirements-plan.txt
 
-echo "==> [4/5] Installing d4rl from source (provides the PointMaze MazeEnv)..."
-pip install "git+https://github.com/Farama-Foundation/d4rl@master#egg=d4rl" || \
-  echo "    WARNING: d4rl install failed -- PointMaze planning needs it. Check the error."
+echo "==> [4/5] Installing d4rl from the release TARBALL (NOT git+https)..."
+# IMPORTANT: `pip install git+https://github.com/.../d4rl` HANGS on this pod (GnuTLS / pack
+# disconnect). The release tarball + --no-deps is what actually works. d4rl also needs h5py
+# explicitly (not pulled in under --no-deps). This is required so `import env` (which imports
+# the pointmaze package) succeeds, even for a PushT-only run.
+pip install h5py
+wget -q https://github.com/Farama-Foundation/d4rl/archive/refs/heads/master.tar.gz -O /tmp/d4rl.tar.gz
+tar -xzf /tmp/d4rl.tar.gz -C /tmp
+pip install --no-deps /tmp/d4rl-master || \
+  echo "    WARNING: d4rl install failed -- check the error."
 
 echo "==> [5/5] Verifying imports (mujoco-py compiles on first import; this can take a minute)..."
+# D4RL_SUPPRESS_IMPORT_ERROR=1: d4rl prints/raises on optional online-env deps; suppress so
+# `import env` proceeds (we only need the offline maze specs + the PushT env).
+export D4RL_SUPPRESS_IMPORT_ERROR=1
 python - <<'PY' || echo "    Import check failed -- see error above."
 import gym, mujoco_py
 print("gym:", gym.__version__)
