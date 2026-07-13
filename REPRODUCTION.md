@@ -352,12 +352,26 @@ setsid nohup python train.py --config-name train.yaml env=pusht encoder=dino_cha
 tail -f train_pusht_channel_on.log     # confirm "Straightening enabled: mode=aggcos, scale=0.1"
 ```
 Run folder: `checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05`.
-**As soon as it finishes (Epoch 2 saved), back the model up off the ephemeral overlay** so a crash
-can't cost 12 h again:
+**Back the model up OFF the pod the moment training finishes** so a crash can't cost 12 h again.
+Preferred: push to the Hugging Face Hub via `hf_backup.py` (durable, off-pod). Set a write token
+(https://huggingface.co/settings/tokens, role: write) — never commit it:
 ```bash
-cp -a checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05 \
-      /workspace/arun/backup_pusht_on_ckpt   # and/or download model_latest.pth locally
+pip install -U huggingface_hub
+export HF_TOKEN=hf_xxxxxxxxxxxxxxxx
+RUN=checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05
+python hf_backup.py push "$RUN" <hf_username>/temporal-straightening-ckpts
 ```
+Best practice: chain the backup onto training so it fires automatically on success:
+```bash
+setsid nohup bash -c '
+  python train.py --config-name train.yaml env=pusht encoder=dino_channel \
+    training.straighten=aggcos1e-1 training.encoder_lr=1e-5 training.epochs=2 env.num_workers=4 \
+    ckpt_base_path=/workspace/arun/temporal-straightening/checkpoints/repro \
+  && python hf_backup.py push '"$RUN"' <hf_username>/temporal-straightening-ckpts
+' > train_pusht_channel_on.log 2>&1 < /dev/null &
+```
+Restore later on a fresh pod: `python hf_backup.py pull <hf_username>/temporal-straightening-ckpts checkpoints/repro/test`.
+(Local-only fallback: `cp -a "$RUN" /workspace/arun/backup_pusht_on_ckpt`.)
 
 ### Phase 3 — planning deps (after training finishes)
 ```bash
