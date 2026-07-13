@@ -330,15 +330,18 @@ dd if=/workspace/arun/data/pusht_noise/train/states.pth of=/dev/null bs=1M 2>&1 
 ```
 If the dataset reads cleanly, continue. If it EIOs, the data must be re-obtained first.
 
-### Phase 1 — code + training environment (venv on /workspace)
+### Phase 1 — code + training environment (SYSTEM python, no venv)
+Install into the system Python. Do NOT use `venv --system-site-packages`: it keeps the container's
+`transformer-engine` visible, which crashes `import accelerate` under torch 2.7. `setup_b200.sh` removes
+transformer-engine, so a plain system-Python install is the clean path. The env is ephemeral (a restart
+wipes it) but that's fine — checkpoints are backed up to the HF Hub, and this rebuilds in ~15 min.
 ```bash
 cd /workspace/arun
 git clone https://github.com/Subaru-5999/temporal_straightening temporal-straightening
-python3 -m venv --system-site-packages /workspace/arun/envs/ts_b200
-source /workspace/arun/envs/ts_b200/bin/activate
 cd /workspace/arun/temporal-straightening
-bash setup_b200.sh          # installs torch 2.7 cu128 + training deps, pre-caches DINOv2, verifies B200
+bash setup_b200.sh          # removes transformer-engine, installs torch 2.7 cu128 + train deps, caches DINOv2, verifies
 # expect the final check to print: 2.7.0+cu128 12.8 (10, 0)  and "kernel launch ok"
+pip install -U huggingface_hub
 ```
 
 ### Phase 2 — train PushT ✓ (detached, ~12 h) and BACK UP the checkpoint
