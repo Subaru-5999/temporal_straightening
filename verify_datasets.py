@@ -307,7 +307,10 @@ def main():
     if torch is not None:
         print(f"torch {torch.__version__}\n")
 
-    names = args.only if args.only else list(CHECKS.keys())
+    # point_maze_medium is not part of the default Table-1 reproduction and is not
+    # shipped on every pod, so it is only checked when explicitly requested via --only.
+    default_names = [n for n in CHECKS.keys() if n != "point_maze_medium"]
+    names = args.only if args.only else default_names
     all_pass = True
     for name in names:
         if name not in CHECKS:
