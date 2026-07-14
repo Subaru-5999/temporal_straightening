@@ -9,6 +9,49 @@
 ![teaser_figure](assets/architecture.png)
 
 
+## Reproducing on a fresh NVIDIA B200 pod (this fork)
+
+> This fork reproduces Table 1 on a single **NVIDIA B200** MIG slice (no SLURM, no conda,
+> NGC PyTorch container). The upstream `environment.yaml` pins torch 2.3, which does **not**
+> support Blackwell (sm_100) — use the scripted path below instead. The trained model is not
+> stored in git; it lives on the Hugging Face Hub and is fetched with an API key.
+
+**1. Clone + reproduce the environment (torch 2.7 cu128 + training + planning deps):**
+```bash
+git clone https://github.com/Subaru-5999/temporal_straightening
+cd temporal_straightening
+
+# env only:
+bash reproduce_env.sh
+
+# ...or env + fetch the trained model from Hugging Face in one go:
+export HF_TOKEN=hf_xxx                     # https://huggingface.co/settings/tokens (read is enough to pull)
+bash reproduce_env.sh --with-model
+```
+`reproduce_env.sh` chains `setup_b200.sh` (Blackwell torch + training deps) and
+`setup_planning.sh` (MuJoCo 210 / gym / mujoco-py / d4rl / PushT). Override paths with
+`DATASET_ROOT=...` and the model repo with `HF_REPO_ID=...` (default
+`gravycrazy/temporal_straightening`).
+
+**2. Fetch / back up the trained model on the Hugging Face Hub (API key):**
+```bash
+export HF_TOKEN=hf_xxx
+# restore the model onto a fresh pod:
+python hf_backup.py pull gravycrazy/temporal_straightening checkpoints/repro/test
+# back a freshly trained run up (so a lost pod never costs a retrain):
+python hf_backup.py push checkpoints/repro/test/<run_folder>
+```
+
+**3. Verify + evaluate:**
+```bash
+python -c "import torch; print(torch.__version__, torch.cuda.get_device_capability())"  # expect 2.7.0+cu128 (10, 0)
+export DATASET_DIR=/workspace/temporal_s/data
+bash eval_pusht_3seeds.sh checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05
+```
+
+See `REPRODUCTION.md` for the full guide (per-row settings, results, and pitfalls) and
+`verify_datasets.py` to confirm the datasets are intact before training.
+
 ## Getting Started
 
 1. [Installation](#installation)
