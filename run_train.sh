@@ -17,7 +17,7 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-export DATASET_DIR="${DATASET_DIR:-/workspace/arun/data}"
+export DATASET_DIR="${DATASET_DIR:-/workspace/temporal_s/data}"
 # Offline by default so a dropped connection never blocks wandb logging.
 export WANDB_MODE="${WANDB_MODE:-offline}"
 

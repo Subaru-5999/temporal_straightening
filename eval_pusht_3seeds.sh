@@ -23,7 +23,7 @@ RUN_DIR="$(readlink -f "$RUN_DIR")"
 NAME="$(basename "$RUN_DIR")"
 SEEDS=(100 200 300)
 
-export DATASET_DIR="${DATASET_DIR:-/workspace/arun/data}"
+export DATASET_DIR="${DATASET_DIR:-/workspace/temporal_s/data}"
 export WANDB_MODE="${WANDB_MODE:-offline}"
 export MUJOCO_GL="${MUJOCO_GL:-egl}"
 export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"

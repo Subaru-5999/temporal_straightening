@@ -17,7 +17,7 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-export DATASET_DIR="${DATASET_DIR:-/workspace/arun/data}"
+export DATASET_DIR="${DATASET_DIR:-/workspace/temporal_s/data}"
 export WANDB_MODE="${WANDB_MODE:-offline}"
 
 ENV="${ENV:-point_maze}"        # point_maze (UMaze) | wall | pusht

@@ -8,17 +8,23 @@ Auth: set a WRITE token in the environment (never hard-code it, never commit it)
 Install once:
     pip install -U huggingface_hub
 
-Usage:
+Usage (repo defaults to gravycrazy/temporal_straightening — our backup store):
   # after training, back the run folder up (repo auto-created, private):
-  python hf_backup.py push checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05 \
-      <hf_username>/temporal-straightening-ckpts
+  python hf_backup.py push checkpoints/repro/test/pusht_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05
 
-  # on a fresh pod, restore everything:
-  python hf_backup.py pull <hf_username>/temporal-straightening-ckpts checkpoints/repro/test
+  # ...or target a specific repo explicitly:
+  python hf_backup.py push <run_dir> gravycrazy/temporal_straightening
+
+  # on a fresh pod, restore everything into checkpoints/repro/test:
+  python hf_backup.py pull gravycrazy/temporal_straightening checkpoints/repro/test
 """
 import argparse
 import os
 import sys
+
+# Default backup repo on the Hugging Face Hub (holds the expensive trained
+# checkpoints so a lost pod never costs us a 12h PushT run again).
+DEFAULT_REPO_ID = "gravycrazy/temporal_straightening"
 
 
 def _token():
@@ -61,9 +67,11 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("push", help="upload a local folder to an HF model repo")
     p.add_argument("local_dir")
-    p.add_argument("repo_id", help="e.g. yourname/temporal-straightening-ckpts")
+    p.add_argument("repo_id", nargs="?", default=DEFAULT_REPO_ID,
+                   help=f"HF repo id (default: {DEFAULT_REPO_ID})")
     q = sub.add_parser("pull", help="download an HF model repo into a local folder")
-    q.add_argument("repo_id")
+    q.add_argument("repo_id", nargs="?", default=DEFAULT_REPO_ID,
+                   help=f"HF repo id (default: {DEFAULT_REPO_ID})")
     q.add_argument("local_dir")
     args = ap.parse_args()
     if args.cmd == "push":
