@@ -6,8 +6,8 @@
 #   GPU     : NVIDIA B200 (Blackwell, sm_100), MIG ~45 GB
 #   Driver  : 570.124.06  /  CUDA driver 12.8
 #   Base    : NGC PyTorch container, system Python 3.10 (NO conda)
-#   Project : /workspace/arun/temporal-straightening
-#   Data    : /workspace/arun/data   (point_maze at /workspace/arun/data/point_maze)
+#   Project : /workspace/temporal_s/temporal_straightening
+#   Data    : /workspace/temporal_s/data   (point_maze at /workspace/temporal_s/data/point_maze)
 #
 # The container ships torch 2.3 (CUDA 12.3, max sm_90) which does NOT support the
 # B200. We run inside a deletable venv and install Blackwell torch (cu128) there.
@@ -23,7 +23,7 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-DATASET_ROOT="${DATASET_ROOT:-/workspace/arun/data}"
+DATASET_ROOT="${DATASET_ROOT:-/workspace/temporal_s/data}"
 
 # Safety: make sure we're inside a venv so installs don't touch the container's
 # system packages (keeps this fully deletable via `rm -rf` of the venv folder).
@@ -92,7 +92,7 @@ cat <<'EOF'
 ==> Setup complete. If capability printed (10, 0) and "kernel launch ok", you're good.
 
 Next steps:
-  export DATASET_DIR=/workspace/arun/data   # already added to ~/.bashrc
+  export DATASET_DIR=/workspace/temporal_s/data   # already added to ~/.bashrc
 
   # quick smoke test (short run) to confirm data loads and the 45 GB slice holds:
   python train.py --config-name train.yaml env=point_maze \
